@@ -35,7 +35,7 @@ use crate::{
 #[cfg(feature = "wayland_frontend")]
 use super::utils::Buffer;
 use super::{
-    Renderer,
+    PresentationMode, Renderer,
     utils::{CommitCounter, DamageSet, OpaqueRegions},
 };
 
@@ -587,6 +587,18 @@ pub trait Element {
     fn allow_direct_scanout(&self) -> bool {
         true
     }
+
+    /// Hint for DRM backend on how the element should be presented
+    fn presentation_mode(&self) -> PresentationMode {
+        PresentationMode::VSync
+    }
+
+    /// Both scanout hints in one call, so `render_elements!` enums generate a single variant
+    /// dispatch for them. Override the two methods above, not this one.
+    #[doc(hidden)]
+    fn scanout_hints(&self) -> (bool, PresentationMode) {
+        (self.allow_direct_scanout(), self.presentation_mode())
+    }
 }
 
 /// A single render element
@@ -694,6 +706,10 @@ where
 
     fn allow_direct_scanout(&self) -> bool {
         (*self).allow_direct_scanout()
+    }
+
+    fn presentation_mode(&self) -> PresentationMode {
+        (*self).presentation_mode()
     }
 }
 
@@ -1141,17 +1157,25 @@ macro_rules! render_elements_internal {
             }
         }
 
-        fn allow_direct_scanout(&self) -> bool {
+        fn scanout_hints(&self) -> (bool, $crate::backend::renderer::PresentationMode) {
             match self {
                 $(
                     #[allow(unused_doc_comments)]
                     $(
                         #[$meta]
                     )*
-                    Self::$body(x) => $crate::render_elements_internal!(@call allow_direct_scanout; x)
+                    Self::$body(x) => $crate::render_elements_internal!(@call scanout_hints; x)
                 ),*,
                 Self::_GenericCatcher(_) => unreachable!(),
             }
+        }
+
+        fn allow_direct_scanout(&self) -> bool {
+            self.scanout_hints().0
+        }
+
+        fn presentation_mode(&self) -> $crate::backend::renderer::PresentationMode {
+            self.scanout_hints().1
         }
     };
     (@draw <$renderer:ty>; $($(#[$meta:meta])* $body:ident=$field:ty $(as <$other_renderer:ty>)?),* $(,)?) => {
@@ -1845,6 +1869,10 @@ where
 
     fn allow_direct_scanout(&self) -> bool {
         self.0.allow_direct_scanout()
+    }
+
+    fn presentation_mode(&self) -> PresentationMode {
+        self.0.presentation_mode()
     }
 }
 
