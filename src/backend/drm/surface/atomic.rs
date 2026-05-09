@@ -1125,11 +1125,14 @@ impl AtomicDrmSurface {
         &self,
         fd: Option<&B>,
     ) -> Result<(), Error> {
-        *self.state.write().unwrap() = if let Some(fd) = fd {
+        // Read the post-reset kernel state into a fresh State.
+        let fresh = if let Some(fd) = fd {
             State::current_state(fd, self.crtc, &mut self.prop_mapping.write().unwrap())?
         } else {
             State::current_state(&*self.fd, self.crtc, &mut self.prop_mapping.write().unwrap())?
         };
+        let fresh_hdr_state = fresh.hdr_state.clone();
+        *self.state.write().unwrap() = fresh;
 
         // Re-initialize the mode blob which might got lost after suspend/resume
         let mut pending = self.pending.write().unwrap();
@@ -1143,6 +1146,10 @@ impl AtomicDrmSurface {
 
         let old_blob = std::mem::replace(&mut pending.blob, blob);
         let _ = self.fd.destroy_property_blob(old_blob.into());
+
+        // HDR blob IDs in `pending` died with the device reset and would fail atomic_check;
+        // the caller re-stages HDR through `set_hdr_state`.
+        pending.hdr_state = fresh_hdr_state;
 
         Ok(())
     }
