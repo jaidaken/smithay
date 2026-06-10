@@ -446,6 +446,7 @@ impl AtomicDrmSurface {
                 [],
                 [&plane_state],
                 &pending.hdr_state,
+                &HashMap::new(),
             )?;
             self.fd
                 .atomic_commit(
@@ -506,6 +507,7 @@ impl AtomicDrmSurface {
             [&conn],
             [&plane_state],
             &pending.hdr_state,
+            &HashMap::new(),
         )?;
         self.fd
             .atomic_commit(
@@ -564,6 +566,7 @@ impl AtomicDrmSurface {
             removed,
             [&plane_state],
             &pending.hdr_state,
+            &HashMap::new(),
         )?;
 
         self.fd
@@ -619,6 +622,7 @@ impl AtomicDrmSurface {
             [],
             [&plane_state],
             &pending.hdr_state,
+            &HashMap::new(),
         )?;
         if let Err(err) = self
             .fd
@@ -752,6 +756,7 @@ impl AtomicDrmSurface {
             &[],
             [&plane_config],
             &empty_hdr,
+            &HashMap::new(),
         )?;
 
         if *current == *pending {
@@ -823,6 +828,7 @@ impl AtomicDrmSurface {
             removed,
             &*planes,
             &pending.hdr_state,
+            &HashMap::new(),
         )?;
 
         let flags = if allow_modeset {
@@ -902,6 +908,7 @@ impl AtomicDrmSurface {
                 removed.clone(),
                 &*planes,
                 &empty_hdr,
+                &HashMap::new(),
             )?;
 
             if let Err(err) = self.fd.atomic_commit(
@@ -929,6 +936,7 @@ impl AtomicDrmSurface {
                     removed,
                     &*planes,
                     &pending.hdr_state,
+                    &current.hdr_state,
                 )?
             }
         };
@@ -1004,6 +1012,7 @@ impl AtomicDrmSurface {
             [],
             [],
             &*planes,
+            &state_lock.hdr_state,
             &state_lock.hdr_state,
         )?;
 
@@ -1853,20 +1862,21 @@ impl<'a> AtomicRequest<'a> {
         removed_connectors: impl IntoIterator<Item = &'a connector::Handle>,
         planes: impl IntoIterator<Item = &'a PlaneState<'a>>,
         hdr_state: &HashMap<connector::Handle, HdrState>,
+        committed_hdr_state: &HashMap<connector::Handle, HdrState>,
     ) -> Result<AtomicRequest<'a>, Error> {
         let mut req = AtomicRequest::new(mapping);
 
         // requests consist out of a set of properties and their new values
         // for different drm objects (crtc, plane, connector, ...).
 
-        // for every connector that is new, we need to set our crtc_id —
-        // and if it has tracked HDR state, also write Colorspace +
-        // HDR_OUTPUT_METADATA so panel firmware re-receives the HDR
-        // InfoFrame on every flip rather than going stale.
+        // HDR props gate to changes-only: per-flip re-assert aggravates nvidia-drm
+        // flip accounting (crtc.h:322 WARN); kwin/gamescope cadence; props persist.
         for conn in connectors {
             req.set_connector(*conn, crtc)?;
             if let Some(hdr) = hdr_state.get(conn) {
-                req.set_connector_hdr(*conn, crtc, *hdr)?;
+                if committed_hdr_state.get(conn) != Some(hdr) {
+                    req.set_connector_hdr(*conn, crtc, *hdr)?;
+                }
             }
         }
 
