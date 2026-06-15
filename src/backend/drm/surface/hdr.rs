@@ -11,17 +11,17 @@
 //     `struct hdr_output_metadata` (CTA-861.3 / BT.2100) describing the source
 //     content's EOTF (e.g. SMPTE ST 2084 / PQ) and mastering luminance.
 //
-// Writing these via the legacy `set_property` ioctl puts them in pending atomic
-// state but does not actually transmit the InfoFrame to the panel firmware until
-// an atomic commit affecting the connector fires. Compositors that drive their
-// render loop through smithay's atomic surface (e.g. cosmic-comp via
-// `GbmDrmCompositor`) need the values included in *every* atomic commit so the
-// panel-side HDR state survives across every flip — otherwise blob refs get
-// reset to 0 on the next render commit and the panel falls back to SDR.
+// The props only transmit the InfoFrame once an atomic commit affecting the
+// connector fires. KMS connector props are sticky: the kernel carries forward
+// values omitted from a later commit (drm_atomic.c duplicates committed state),
+// so the props must be staged on the commit where they CHANGE, not on every
+// frame. Re-asserting them per flip adds redundant connector writes that
+// aggravate nvidia-drm flip-event accounting; kwin, gamescope and wlroots all
+// stage on change only.
 //
 // This module gives compositors a way to attach per-connector HDR state to an
-// `AtomicDrmSurface`; smithay then includes the props in every atomic commit
-// it builds for that surface.
+// `AtomicDrmSurface`; smithay stages it on the next commit that diverges from
+// committed state.
 
 /// Per-connector HDR signaling values to include in every atomic commit on a
 /// surface. Values are raw (u64) at this level — callers (typically a

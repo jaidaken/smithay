@@ -1,3 +1,4 @@
+use drm::Device as BaseDevice;
 use drm::control::Device as ControlDevice;
 use drm::control::atomic::AtomicModeReq;
 use drm::control::connector::Interface;
@@ -897,8 +898,18 @@ impl AtomicDrmSurface {
         // WITH `hdr_state` for the real commit afterward.
         let prop_mapping = self.prop_mapping.read().unwrap();
         let empty_hdr: HashMap<connector::Handle, HdrState> = HashMap::new();
+        // xe alone rejects HDR_OUTPUT_METADATA in a test commit; every other driver
+        // must test the same props the real commit sends or the kernel never validates them.
+        let driver_strips_hdr_in_test = BaseDevice::get_driver(&*self.fd)
+            .map(|d| d.name().to_string_lossy().eq_ignore_ascii_case("xe"))
+            .unwrap_or(false);
+        let test_hdr = if driver_strips_hdr_in_test {
+            &empty_hdr
+        } else {
+            &pending.hdr_state
+        };
         let req = {
-            // -- test commit (no HDR) --
+            // -- test commit: HDR props match the real commit except on xe --
             let test_req = AtomicRequest::build_request(
                 &prop_mapping,
                 self.crtc,
@@ -907,7 +918,7 @@ impl AtomicDrmSurface {
                 &pending_conns,
                 removed.clone(),
                 &*planes,
-                &empty_hdr,
+                test_hdr,
                 &HashMap::new(),
             )?;
 
