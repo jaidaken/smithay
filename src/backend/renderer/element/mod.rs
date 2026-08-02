@@ -831,6 +831,10 @@ impl<E: Element> Element for NamespacedElement<E> {
     fn allow_direct_scanout(&self) -> bool {
         self.inner.allow_direct_scanout()
     }
+
+    fn presentation_mode(&self) -> PresentationMode {
+        self.inner.presentation_mode()
+    }
 }
 
 impl<R: Renderer, E: Element + RenderElement<R>> RenderElement<R> for NamespacedElement<E> {
@@ -1164,6 +1168,19 @@ macro_rules! render_elements_internal {
                         #[$meta]
                     )*
                     Self::$body(x) => $crate::render_elements_internal!(@call allow_direct_scanout; x)
+                ),*,
+                Self::_GenericCatcher(_) => unreachable!(),
+            }
+        }
+
+        fn presentation_mode(&self) -> $crate::backend::renderer::PresentationMode {
+            match self {
+                $(
+                    #[allow(unused_doc_comments)]
+                    $(
+                        #[$meta]
+                    )*
+                    Self::$body(x) => $crate::render_elements_internal!(@call presentation_mode; x)
                 ),*,
                 Self::_GenericCatcher(_) => unreachable!(),
             }
