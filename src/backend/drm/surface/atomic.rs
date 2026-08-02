@@ -4,7 +4,8 @@ use drm::control::atomic::AtomicModeReq;
 use drm::control::connector::Interface;
 use drm::control::property::ValueType;
 use drm::control::{
-    AtomicCommitFlags, Mode, PlaneType, connector, crtc, dumbbuffer::DumbBuffer, framebuffer, plane, property,
+    AtomicCommitFlags, Mode, PageFlipFlags, PlaneType, connector, crtc, dumbbuffer::DumbBuffer, framebuffer,
+    plane, property,
 };
 
 use std::collections::HashMap;
@@ -184,6 +185,7 @@ pub struct AtomicDrmSurface {
     state: RwLock<State>,
     pending: RwLock<State>,
     pub(super) span: tracing::Span,
+    supports_async_page_flips: bool,
 }
 
 impl AtomicDrmSurface {
@@ -196,6 +198,7 @@ impl AtomicDrmSurface {
         prop_mapping: Arc<RwLock<PropMapping>>,
         mode: Mode,
         connectors: &[connector::Handle],
+        supports_async_page_flips: bool,
     ) -> Result<Self, Error> {
         let span = info_span!("drm_atomic", crtc = ?crtc);
         let _guard = span.enter();
@@ -222,6 +225,7 @@ impl AtomicDrmSurface {
         };
 
         drop(_guard);
+
         let surface = AtomicDrmSurface {
             fd,
             active,
@@ -232,6 +236,7 @@ impl AtomicDrmSurface {
             state: RwLock::new(state),
             pending: RwLock::new(pending),
             span,
+            supports_async_page_flips,
         };
 
         Ok(surface)
@@ -795,6 +800,7 @@ impl AtomicDrmSurface {
         &self,
         planes: impl IntoIterator<Item = PlaneState<'a>>,
         allow_modeset: bool,
+        async_commit: bool,
     ) -> Result<(), Error> {
         if !self.active.load(Ordering::SeqCst) {
             return Err(Error::DeviceInactive);
@@ -803,13 +809,14 @@ impl AtomicDrmSurface {
         let current = self.state.read().unwrap();
         let pending = self.pending.read().unwrap();
 
-        self.test_state_internal(planes, allow_modeset, &current, &pending)
+        self.test_state_internal(planes, allow_modeset, async_commit, &current, &pending)
     }
 
     fn test_state_internal<'a>(
         &self,
         planes: impl IntoIterator<Item = PlaneState<'a>>,
         allow_modeset: bool,
+        async_commit: bool,
         current: &'_ State,
         pending: &'_ State,
     ) -> Result<(), Error> {
@@ -832,11 +839,15 @@ impl AtomicDrmSurface {
             &HashMap::new(),
         )?;
 
-        let flags = if allow_modeset {
-            AtomicCommitFlags::ALLOW_MODESET | AtomicCommitFlags::TEST_ONLY
-        } else {
-            AtomicCommitFlags::TEST_ONLY
-        };
+        let mut flags = AtomicCommitFlags::TEST_ONLY;
+        if allow_modeset {
+            flags |= AtomicCommitFlags::ALLOW_MODESET;
+        }
+
+        if async_commit {
+            flags |= AtomicCommitFlags::PAGE_FLIP_ASYNC;
+        }
+
         self.fd.atomic_commit(flags, req.build()?).map_err(|source| {
             Error::Access(AccessError {
                 errmsg: "Error testing state",
@@ -846,13 +857,26 @@ impl AtomicDrmSurface {
         })
     }
 
+    fn flip_flags(&self, value: PageFlipFlags) -> AtomicCommitFlags {
+        let mut v = AtomicCommitFlags::empty();
+        if value.contains(PageFlipFlags::EVENT) {
+            v |= AtomicCommitFlags::PAGE_FLIP_EVENT;
+        }
+        if self.supports_async_page_flips && value.contains(PageFlipFlags::ASYNC) {
+            v |= AtomicCommitFlags::PAGE_FLIP_ASYNC;
+        }
+        v
+    }
+
     #[instrument(level = "trace", parent = &self.span, skip(self, planes))]
     #[profiling::function]
     pub fn commit<'a>(
         &self,
         planes: impl IntoIterator<Item = PlaneState<'a>>,
-        event: bool,
+        flip_flags: super::PageFlipFlags,
     ) -> Result<(), Error> {
+        let flip_flags = self.flip_flags(flip_flags);
+
         if !self.active.load(Ordering::SeqCst) {
             return Err(Error::DeviceInactive);
         }
@@ -956,9 +980,9 @@ impl AtomicDrmSurface {
         let result = self
             .fd
             .atomic_commit(
-                if event {
+                if flip_flags.contains(AtomicCommitFlags::PAGE_FLIP_EVENT) {
                     // on the atomic api we can modeset and trigger a page_flip event on the same call!
-                    AtomicCommitFlags::PAGE_FLIP_EVENT | AtomicCommitFlags::ALLOW_MODESET
+                    flip_flags | AtomicCommitFlags::ALLOW_MODESET
                     // we also *should* not need to wait for completion, like with `set_crtc`,
                     // because we have tested this exact commit already, so we do not expect any errors later down the line.
                     //
@@ -999,8 +1023,10 @@ impl AtomicDrmSurface {
     pub fn page_flip<'a>(
         &self,
         planes: impl IntoIterator<Item = PlaneState<'a>>,
-        event: bool,
+        flip_flags: PageFlipFlags,
     ) -> Result<(), Error> {
+        let flip_flags = self.flip_flags(flip_flags);
+
         if !self.active.load(Ordering::SeqCst) {
             return Err(Error::DeviceInactive);
         }
@@ -1034,8 +1060,8 @@ impl AtomicDrmSurface {
         let res = self
             .fd
             .atomic_commit(
-                if event {
-                    AtomicCommitFlags::PAGE_FLIP_EVENT | AtomicCommitFlags::NONBLOCK
+                if flip_flags.contains(AtomicCommitFlags::PAGE_FLIP_EVENT) {
+                    flip_flags | AtomicCommitFlags::NONBLOCK
                 } else {
                     AtomicCommitFlags::NONBLOCK
                 },
@@ -1238,37 +1264,6 @@ impl From<Transform> for DrmRotation {
             Transform::Flipped180 => DrmRotation::REFLECT_Y | DrmRotation::ROTATE_180,
             Transform::Flipped270 => DrmRotation::REFLECT_Y | DrmRotation::ROTATE_270,
         }
-    }
-}
-
-#[cfg(test)]
-mod test {
-    use crate::{
-        backend::drm::surface::atomic::to_fixed,
-        utils::{Physical, Rectangle},
-    };
-
-    use super::AtomicDrmSurface;
-
-    fn is_send<S: Send>() {}
-
-    #[test]
-    fn surface_is_send() {
-        is_send::<AtomicDrmSurface>();
-    }
-
-    #[test]
-    fn test_fixed_point() {
-        let geometry: Rectangle<f64, Physical> = Rectangle::from_size((1920.0, 1080.0).into());
-        let fixed = to_fixed(geometry.size.w) as u64;
-        assert_eq!(125829120, fixed);
-    }
-
-    #[test]
-    fn test_fractional_fixed_point() {
-        let geometry: Rectangle<f64, Physical> = Rectangle::from_size((1920.1, 1080.0).into());
-        let fixed = to_fixed(geometry.size.w) as u64;
-        assert_eq!(125835674, fixed);
     }
 }
 
@@ -1900,5 +1895,36 @@ impl<'a> AtomicRequest<'a> {
         }
 
         Ok(req)
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use crate::{
+        backend::drm::surface::atomic::to_fixed,
+        utils::{Physical, Rectangle},
+    };
+
+    use super::AtomicDrmSurface;
+
+    fn is_send<S: Send>() {}
+
+    #[test]
+    fn surface_is_send() {
+        is_send::<AtomicDrmSurface>();
+    }
+
+    #[test]
+    fn test_fixed_point() {
+        let geometry: Rectangle<f64, Physical> = Rectangle::from_size((1920.0, 1080.0).into());
+        let fixed = to_fixed(geometry.size.w) as u64;
+        assert_eq!(125829120, fixed);
+    }
+
+    #[test]
+    fn test_fractional_fixed_point() {
+        let geometry: Rectangle<f64, Physical> = Rectangle::from_size((1920.1, 1080.0).into());
+        let fixed = to_fixed(geometry.size.w) as u64;
+        assert_eq!(125835674, fixed);
     }
 }

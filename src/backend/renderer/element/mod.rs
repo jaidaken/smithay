@@ -35,7 +35,7 @@ use crate::{
 #[cfg(feature = "wayland_frontend")]
 use super::utils::Buffer;
 use super::{
-    Renderer,
+    PresentationMode, Renderer,
     utils::{CommitCounter, DamageSet, OpaqueRegions},
 };
 
@@ -264,8 +264,12 @@ pub enum UnderlyingStorage<'a> {
 pub enum RenderingReason {
     /// The element buffer format is unsuited for direct scan-out
     FormatUnsupported,
+    /// The element buffer format is unsuited for async direct scan-out
+    AsyncFormatUnsupported,
     /// Element was selected for direct scan-out but failed
     ScanoutFailed,
+    /// Element was selected for async direct scan-out but failed
+    AsyncScanoutFailed,
 }
 
 /// Defines the presentation state of an element after rendering
@@ -281,6 +285,8 @@ pub enum RenderElementPresentationState {
     },
     /// The element was selected for zero-copy scan-out
     ZeroCopy,
+    /// The element was selected for zero-copy async scan-out
+    Async,
     /// The element was skipped as it is current not visible
     Skipped,
 }
@@ -587,6 +593,11 @@ pub trait Element {
     fn allow_direct_scanout(&self) -> bool {
         true
     }
+
+    /// Hint for DRM backend on how the element should be presented
+    fn presentation_mode(&self) -> PresentationMode {
+        PresentationMode::VSync
+    }
 }
 
 /// A single render element
@@ -694,6 +705,10 @@ where
 
     fn allow_direct_scanout(&self) -> bool {
         (*self).allow_direct_scanout()
+    }
+
+    fn presentation_mode(&self) -> PresentationMode {
+        (*self).presentation_mode()
     }
 }
 
@@ -1845,6 +1860,10 @@ where
 
     fn allow_direct_scanout(&self) -> bool {
         self.0.allow_direct_scanout()
+    }
+
+    fn presentation_mode(&self) -> PresentationMode {
+        self.0.presentation_mode()
     }
 }
 
