@@ -838,6 +838,10 @@ impl<E: Element> Element for NamespacedElement<E> {
     fn allow_direct_scanout(&self) -> bool {
         self.inner.allow_direct_scanout()
     }
+
+    fn presentation_mode(&self) -> PresentationMode {
+        self.inner.presentation_mode()
+    }
 }
 
 impl<R: Renderer, E: Element + RenderElement<R>> RenderElement<R> for NamespacedElement<E> {
