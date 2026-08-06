@@ -1174,10 +1174,17 @@ impl AtomicDrmSurface {
             State::current_state(&*self.fd, self.crtc, &mut self.prop_mapping.write().unwrap())?
         };
         let fresh_hdr_state = fresh.hdr_state.clone();
-        *self.state.write().unwrap() = fresh;
+        let previous_connectors =
+            std::mem::replace(&mut *self.state.write().unwrap(), fresh).connectors;
 
         // Re-initialize the mode blob which might got lost after suspend/resume
         let mut pending = self.pending.write().unwrap();
+
+        // The device reset cleared every CRTC_ID, and a connectorless modeset is rejected
+        // as "active without enabled" forever.
+        if pending.connectors.is_empty() {
+            pending.connectors = previous_connectors;
+        }
         let blob = self.fd.create_property_blob(&pending.mode).map_err(|source| {
             Error::Access(AccessError {
                 errmsg: "Failed to create Property Blob for mode",
