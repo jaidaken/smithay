@@ -1184,8 +1184,21 @@ impl AtomicDrmSurface {
         // path) is responsible for re-creating any blobs and re-staging
         // pending state through the normal `set_hdr_state` / set_mode /
         // etc. paths.
+        // Connectors excepted: the device reset cleared every CRTC_ID, and a
+        // connectorless modeset is rejected as "active without enabled" forever.
+        let connectors = {
+            let pending = self.pending.read().unwrap();
+            if pending.connectors.is_empty() {
+                self.state.read().unwrap().connectors.clone()
+            } else {
+                pending.connectors.clone()
+            }
+        };
         *self.state.write().unwrap() = fresh.clone();
-        *self.pending.write().unwrap() = fresh;
+        *self.pending.write().unwrap() = State {
+            connectors,
+            ..fresh
+        };
         Ok(())
     }
 
