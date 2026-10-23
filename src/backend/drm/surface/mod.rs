@@ -388,6 +388,16 @@ impl DrmSurface {
         }
     }
 
+    /// Read a copy of the per-connector HDR signaling state staged for the next
+    /// atomic commit (set via [`set_hdr_state`](Self::set_hdr_state)). Returns an
+    /// empty map on legacy (non-atomic) DRM backends.
+    pub fn pending_hdr_state(&self) -> std::collections::HashMap<connector::Handle, HdrState> {
+        match &*self.internal {
+            DrmSurfaceInternal::Atomic(surf) => surf.pending_hdr_state(),
+            DrmSurfaceInternal::Legacy(_) => std::collections::HashMap::new(),
+        }
+    }
+
     /// Disables the given plane.
     ///
     /// Errors if the plane is not supported by this crtc or if the underlying
