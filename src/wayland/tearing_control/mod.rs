@@ -50,8 +50,8 @@
 //! ```
 
 use std::sync::{
-    atomic::{self, AtomicBool},
     Mutex,
+    atomic::{self, AtomicBool},
 };
 
 use wayland_protocols::wp::tearing_control::v1::server::{
@@ -59,7 +59,7 @@ use wayland_protocols::wp::tearing_control::v1::server::{
     wp_tearing_control_v1::{self, WpTearingControlV1},
 };
 use wayland_server::{
-    backend::GlobalId, protocol::wl_surface::WlSurface, Dispatch, DisplayHandle, GlobalDispatch,
+    Dispatch, DisplayHandle, GlobalDispatch, backend::GlobalId, protocol::wl_surface::WlSurface,
 };
 
 use super::compositor::Cacheable;

@@ -13,7 +13,6 @@ pub(super) mod atomic;
 pub(super) mod gbm;
 pub mod hdr;
 pub(super) mod legacy;
-pub use hdr::HdrState;
 use super::{
     DrmDeviceFd, PlaneClaim, PlaneInfo, PlaneType, Planes, device::PlaneClaimStorage, error::Error,
     plane_type,
@@ -21,6 +20,7 @@ use super::{
 use crate::utils::DevPath;
 use crate::utils::{Buffer, Physical, Point, Rectangle, Transform};
 use atomic::AtomicDrmSurface;
+pub use hdr::HdrState;
 use legacy::LegacyDrmSurface;
 
 /// An open crtc + plane combination that can be used for scan-out
@@ -362,11 +362,7 @@ impl DrmSurface {
     /// Returns [`Error::UnknownProperty`] on legacy (non-atomic) DRM backends
     /// since HDR signaling without atomic-commit semantics has no way to
     /// guarantee blob-property persistence across mode changes.
-    pub fn set_hdr_state(
-        &self,
-        connector: connector::Handle,
-        state: Option<HdrState>,
-    ) -> Result<(), Error> {
+    pub fn set_hdr_state(&self, connector: connector::Handle, state: Option<HdrState>) -> Result<(), Error> {
         match &*self.internal {
             DrmSurfaceInternal::Atomic(surf) => surf.set_hdr_state(connector, state),
             DrmSurfaceInternal::Legacy(_) => Err(Error::UnknownProperty {

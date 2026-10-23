@@ -5,8 +5,8 @@ use wayland_protocols::wp::color_representation::v1::server::{
     wp_color_representation_surface_v1::{self, WpColorRepresentationSurfaceV1},
 };
 use wayland_server::{
-    Client, DataInit, Dispatch, DisplayHandle, GlobalDispatch, New, Resource, WEnum,
-    Weak as WaylandWeak, backend::ClientId, protocol::wl_surface::WlSurface,
+    Client, DataInit, Dispatch, DisplayHandle, GlobalDispatch, New, Resource, WEnum, Weak as WaylandWeak,
+    backend::ClientId, protocol::wl_surface::WlSurface,
 };
 
 use super::{
@@ -78,10 +78,7 @@ where
                     states
                         .data_map
                         .insert_if_missing_threadsafe(ColorRepresentationSurfaceData::new);
-                    let data = states
-                        .data_map
-                        .get::<ColorRepresentationSurfaceData>()
-                        .unwrap();
+                    let data = states.data_map.get::<ColorRepresentationSurfaceData>().unwrap();
                     data.is_resource_attached_or_attach()
                 });
                 if already_attached {
@@ -108,12 +105,9 @@ where
 // wp_color_representation_surface_v1 — per-surface state setters
 // ===========================================================================
 
-impl<D> Dispatch<WpColorRepresentationSurfaceV1, SurfaceResourceData, D>
-    for ColorRepresentationState
+impl<D> Dispatch<WpColorRepresentationSurfaceV1, SurfaceResourceData, D> for ColorRepresentationState
 where
-    D: Dispatch<WpColorRepresentationSurfaceV1, SurfaceResourceData>
-        + ColorRepresentationHandler
-        + 'static,
+    D: Dispatch<WpColorRepresentationSurfaceV1, SurfaceResourceData> + ColorRepresentationHandler + 'static,
 {
     fn request(
         state: &mut D,
@@ -133,9 +127,7 @@ where
                         }
                         // Per spec: destroy reverts surface state to compositor
                         // defaults. Clear pending so the next commit reflects that.
-                        let mut guard = states
-                            .cached_state
-                            .get::<ColorRepresentationSurfaceCachedState>();
+                        let mut guard = states.cached_state.get::<ColorRepresentationSurfaceCachedState>();
                         let pending = guard.pending();
                         pending.alpha_mode = None;
                         pending.coefficients = None;
@@ -178,10 +170,7 @@ where
                 }
             }
 
-            wp_color_representation_surface_v1::Request::SetCoefficientsAndRange {
-                coefficients,
-                range,
-            } => {
+            wp_color_representation_surface_v1::Request::SetCoefficientsAndRange { coefficients, range } => {
                 let coefficients = match coefficients {
                     WEnum::Value(v) => v,
                     WEnum::Unknown(_) => {
@@ -215,9 +204,7 @@ where
                 }
                 if let Ok(surface) = data.surface.upgrade() {
                     compositor::with_states(&surface, |states| {
-                        let mut guard = states
-                            .cached_state
-                            .get::<ColorRepresentationSurfaceCachedState>();
+                        let mut guard = states.cached_state.get::<ColorRepresentationSurfaceCachedState>();
                         let pending = guard.pending();
                         pending.coefficients = Some(coefficients);
                         pending.range = Some(range);

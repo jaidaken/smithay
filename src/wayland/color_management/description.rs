@@ -22,8 +22,8 @@
 
 use std::sync::Arc;
 
-use wayland_protocols::wp::color_management::v1::server::{
-    wp_color_manager_v1::{Primaries as ProtoPrimaries, TransferFunction as ProtoTransferFunction},
+use wayland_protocols::wp::color_management::v1::server::wp_color_manager_v1::{
+    Primaries as ProtoPrimaries, TransferFunction as ProtoTransferFunction,
 };
 
 /// Chromaticity coordinates of a color volume's three primaries plus its white point.
@@ -239,11 +239,7 @@ impl ImageDescriptionInterner {
     /// present. The input's `identity` field is ignored — the returned handle's
     /// identity is authoritative.
     pub fn intern(&mut self, mut description: ImageDescription) -> Arc<ImageDescription> {
-        if let Some(existing) = self
-            .descriptions
-            .iter()
-            .find(|d| d.as_ref() == &description)
-        {
+        if let Some(existing) = self.descriptions.iter().find(|d| d.as_ref() == &description) {
             return Arc::clone(existing);
         }
         description.identity = self.descriptions.len() as u64 + 1;
@@ -297,7 +293,7 @@ mod tests {
             primaries: Some(PrimariesDef::Named(ProtoPrimaries::Bt2020)),
             transfer_function: Some(TransferFunctionDef::Named(ProtoTransferFunction::St2084Pq)),
             luminances: Some(Luminances {
-                min_lum: 5,           // 0.0005 cd/m² × 10,000
+                min_lum: 5, // 0.0005 cd/m² × 10,000
                 max_lum: 10_000,
                 reference_lum: 203,
             }),
@@ -316,10 +312,7 @@ mod tests {
         let interner = ImageDescriptionInterner::new();
         let srgb = interner.srgb_default();
         assert_eq!(srgb.identity, 1);
-        assert_eq!(
-            srgb.primaries,
-            Some(PrimariesDef::Named(ProtoPrimaries::Srgb))
-        );
+        assert_eq!(srgb.primaries, Some(PrimariesDef::Named(ProtoPrimaries::Srgb)));
         assert!(srgb.is_parametric());
         assert!(!srgb.is_icc());
     }

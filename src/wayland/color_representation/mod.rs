@@ -32,9 +32,7 @@ use std::collections::HashSet;
 
 use wayland_protocols::wp::color_representation::v1::server::{
     wp_color_representation_manager_v1::WpColorRepresentationManagerV1,
-    wp_color_representation_surface_v1::{
-        AlphaMode, Coefficients, Range, WpColorRepresentationSurfaceV1,
-    },
+    wp_color_representation_surface_v1::{AlphaMode, Coefficients, Range, WpColorRepresentationSurfaceV1},
 };
 use wayland_server::{
     Dispatch, DisplayHandle, GlobalDispatch, Weak as WaylandWeak, backend::GlobalId,
@@ -110,8 +108,7 @@ impl ColorRepresentationCapabilities {
 
     /// Returns whether the (coefficients, range) pair is advertised.
     pub fn supports_coefficients_and_range(&self, coefficients: Coefficients, range: Range) -> bool {
-        self.coefficient_range_pairs
-            .contains(&(coefficients, range))
+        self.coefficient_range_pairs.contains(&(coefficients, range))
     }
 
     /// Iterator of advertised alpha modes (used by bind handler).
@@ -207,9 +204,7 @@ where
     F: FnOnce(&ColorRepresentationSurfaceCachedState) -> R,
 {
     crate::wayland::compositor::with_states(surface, |states| {
-        let mut guard = states
-            .cached_state
-            .get::<ColorRepresentationSurfaceCachedState>();
+        let mut guard = states.cached_state.get::<ColorRepresentationSurfaceCachedState>();
         let current = guard.current();
         callback(&current.clone())
     })

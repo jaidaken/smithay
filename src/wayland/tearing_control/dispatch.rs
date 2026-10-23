@@ -3,7 +3,7 @@ use wayland_protocols::wp::tearing_control::v1::server::{
     wp_tearing_control_v1::{self, WpTearingControlV1},
 };
 use wayland_server::{
-    backend::ClientId, Client, DataInit, Dispatch, DisplayHandle, GlobalDispatch, New, Resource,
+    Client, DataInit, Dispatch, DisplayHandle, GlobalDispatch, New, Resource, backend::ClientId,
 };
 
 use super::{

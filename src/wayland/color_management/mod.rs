@@ -34,6 +34,7 @@
 use std::collections::HashSet;
 use std::sync::Arc;
 
+use dispatch::emit_information_events;
 use wayland_protocols::wp::color_management::v1::server::{
     wp_color_management_output_v1::WpColorManagementOutputV1,
     wp_color_management_surface_feedback_v1::WpColorManagementSurfaceFeedbackV1,
@@ -48,9 +49,9 @@ use wayland_protocols::wp::color_management::v1::server::{
     wp_image_description_reference_v1::WpImageDescriptionReferenceV1,
     wp_image_description_v1::{Cause, WpImageDescriptionV1},
 };
-use dispatch::emit_information_events;
 use wayland_server::{
-    Dispatch, DisplayHandle, GlobalDispatch, Resource, Weak as WaylandWeak, backend::GlobalId,
+    Dispatch, DisplayHandle, GlobalDispatch, Resource, Weak as WaylandWeak,
+    backend::GlobalId,
     protocol::{wl_output::WlOutput, wl_surface::WlSurface},
 };
 
@@ -61,8 +62,8 @@ pub mod dispatch;
 pub mod surface_state;
 
 pub use description::{
-    Chromaticities, IccProfile, ImageDescription, ImageDescriptionInterner, Luminances,
-    MasteringLuminance, PrimariesDef, TransferFunctionDef,
+    Chromaticities, IccProfile, ImageDescription, ImageDescriptionInterner, Luminances, MasteringLuminance,
+    PrimariesDef, TransferFunctionDef,
 };
 pub use surface_state::{ColorManagementSurfaceCachedState, ColorManagementSurfaceData};
 
@@ -324,8 +325,7 @@ impl ColorManagementState {
         cause: Cause,
         msg: String,
     ) {
-        self.pending_failed_descriptions
-            .push((resource, cause, msg));
+        self.pending_failed_descriptions.push((resource, cause, msg));
     }
 
     /// The registered `wp_color_manager_v1` global ID.
@@ -358,10 +358,7 @@ impl ColorManagementState {
     }
 
     /// Register a newly bound `wp_color_management_surface_feedback_v1` resource.
-    pub(crate) fn register_feedback_resource(
-        &mut self,
-        resource: &WpColorManagementSurfaceFeedbackV1,
-    ) {
+    pub(crate) fn register_feedback_resource(&mut self, resource: &WpColorManagementSurfaceFeedbackV1) {
         self.feedback_resources.push(resource.downgrade());
     }
 
@@ -427,10 +424,7 @@ pub trait ColorManagementHandler {
     /// override for known-HDR clients."
     ///
     /// Default returns sRGB so a minimal handler still satisfies the protocol.
-    fn preferred_image_description(
-        &mut self,
-        _surface: &WlSurface,
-    ) -> Arc<ImageDescription> {
+    fn preferred_image_description(&mut self, _surface: &WlSurface) -> Arc<ImageDescription> {
         self.color_management_state().interner().srgb_default()
     }
 
@@ -466,9 +460,7 @@ where
     F: FnOnce(Option<&Arc<ImageDescription>>, RenderIntent) -> R,
 {
     crate::wayland::compositor::with_states(surface, |states| {
-        let mut guard = states
-            .cached_state
-            .get::<ColorManagementSurfaceCachedState>();
+        let mut guard = states.cached_state.get::<ColorManagementSurfaceCachedState>();
         let current = guard.current();
         callback(current.description.as_ref(), current.render_intent)
     })
@@ -534,10 +526,7 @@ where
 
 /// Send `preferred_changed2` (v2) or `preferred_changed` (v1) based on the
 /// resource's bound version.
-pub(crate) fn send_preferred_changed(
-    resource: &WpColorManagementSurfaceFeedbackV1,
-    identity: u64,
-) {
+pub(crate) fn send_preferred_changed(resource: &WpColorManagementSurfaceFeedbackV1, identity: u64) {
     let (hi, lo) = ((identity >> 32) as u32, identity as u32);
     if resource.version() >= 2 {
         resource.preferred_changed2(hi, lo);

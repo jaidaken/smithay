@@ -328,11 +328,7 @@ impl AtomicDrmSurface {
     /// `colorspace_value` corresponds to a valid enum variant on the connector,
     /// nor that `metadata_blob_id` references a live blob. Both are handed to
     /// the kernel as raw `u64`s during atomic commit.
-    pub fn set_hdr_state(
-        &self,
-        conn: connector::Handle,
-        state: Option<HdrState>,
-    ) -> Result<(), Error> {
+    pub fn set_hdr_state(&self, conn: connector::Handle, state: Option<HdrState>) -> Result<(), Error> {
         if !self.active.load(Ordering::SeqCst) {
             return Err(Error::DeviceInactive);
         }
@@ -1174,8 +1170,7 @@ impl AtomicDrmSurface {
             State::current_state(&*self.fd, self.crtc, &mut self.prop_mapping.write().unwrap())?
         };
         let fresh_hdr_state = fresh.hdr_state.clone();
-        let previous_connectors =
-            std::mem::replace(&mut *self.state.write().unwrap(), fresh).connectors;
+        let previous_connectors = std::mem::replace(&mut *self.state.write().unwrap(), fresh).connectors;
 
         // Re-initialize the mode blob which might got lost after suspend/resume
         let mut pending = self.pending.write().unwrap();
@@ -1351,14 +1346,8 @@ impl<'a> AtomicRequest<'a> {
         hdr: HdrState,
     ) -> Result<(), Error> {
         let connector_props = self.connector_props.entry(conn).or_default();
-        connector_props.insert(
-            "Colorspace",
-            property::Value::UnsignedRange(hdr.colorspace_value),
-        );
-        connector_props.insert(
-            "HDR_OUTPUT_METADATA",
-            property::Value::Blob(hdr.metadata_blob_id),
-        );
+        connector_props.insert("Colorspace", property::Value::UnsignedRange(hdr.colorspace_value));
+        connector_props.insert("HDR_OUTPUT_METADATA", property::Value::Blob(hdr.metadata_blob_id));
         if let Some(blob) = hdr.degamma_lut_blob_id {
             let crtc_props = self.crtc_props.entry(crtc).or_default();
             crtc_props.insert("DEGAMMA_LUT", property::Value::Blob(blob));

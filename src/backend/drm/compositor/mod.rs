@@ -2608,7 +2608,12 @@ where
 
         let flip = prepared_frame
             .frame
-            .commit(&self.surface, self.supports_fencing, false, PageFlipFlags::empty())
+            .commit(
+                &self.surface,
+                self.supports_fencing,
+                false,
+                PageFlipFlags::empty(),
+            )
             .map(|_| PresentationMode::VSync);
 
         let res = self.handle_flip(&prepared_frame, flip);
@@ -4199,10 +4204,7 @@ where
             if !async_format_might_supported {
                 trace!(
                     "skipping direct scan-out on {:?} with zpos {:?} for element {:?}, async format {:?} not supported",
-                    plane.handle,
-                    plane.zpos,
-                    element_id,
-                    element_config.properties.format,
+                    plane.handle, plane.zpos, element_id, element_config.properties.format,
                 );
                 return Err(Some(RenderingReason::AsyncFormatUnsupported));
             }

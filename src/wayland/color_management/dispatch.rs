@@ -30,8 +30,8 @@ use wayland_server::{
 
 use super::{
     Chromaticities, ColorManagementHandler, ColorManagementState, ColorManagementSurfaceCachedState,
-    ColorManagementSurfaceData, IccProfile, ImageDescription, Luminances, MasteringLuminance,
-    PrimariesDef, TransferFunctionDef, send_ready,
+    ColorManagementSurfaceData, IccProfile, ImageDescription, Luminances, MasteringLuminance, PrimariesDef,
+    TransferFunctionDef, send_ready,
 };
 use crate::wayland::compositor;
 
@@ -252,9 +252,7 @@ where
                         output: output.downgrade(),
                     },
                 );
-                state
-                    .color_management_state()
-                    .register_output_resource(&resource);
+                state.color_management_state().register_output_resource(&resource);
             }
 
             wp_color_manager_v1::Request::GetSurface { id, surface } => {
@@ -284,10 +282,7 @@ where
             }
 
             wp_color_manager_v1::Request::GetSurfaceFeedback { id, surface } => {
-                let resource = data_init.init(
-                    id,
-                    SurfaceFeedbackResourceData::new(surface.downgrade()),
-                );
+                let resource = data_init.init(id, SurfaceFeedbackResourceData::new(surface.downgrade()));
                 state
                     .color_management_state()
                     .register_feedback_resource(&resource);
@@ -335,11 +330,11 @@ where
                     );
                     return;
                 }
-                let arc = state.color_management_state().interner_mut().intern(
-                    ImageDescription {
-                        primaries: Some(PrimariesDef::Named(
-                            wp_color_manager_v1::Primaries::Srgb,
-                        )),
+                let arc = state
+                    .color_management_state()
+                    .interner_mut()
+                    .intern(ImageDescription {
+                        primaries: Some(PrimariesDef::Named(wp_color_manager_v1::Primaries::Srgb)),
                         transfer_function: Some(TransferFunctionDef::Named(
                             wp_color_manager_v1::TransferFunction::ExtLinear,
                         )),
@@ -351,8 +346,7 @@ where
                         icc: None,
                         windows_scrgb: true,
                         identity: 0,
-                    },
-                );
+                    });
                 state.new_image_description(&arc);
                 let identity = arc.identity;
                 let resource = data_init.init(
@@ -390,10 +384,7 @@ where
                 let arc = Arc::clone(&ref_data.description);
                 let identity = arc.identity;
                 let allow = ref_data.allow_get_information;
-                let resource = data_init.init(
-                    image_description,
-                    DescriptionResourceData::ready(arc, allow),
-                );
+                let resource = data_init.init(image_description, DescriptionResourceData::ready(arc, allow));
                 send_ready(&resource, identity);
             }
 
@@ -470,9 +461,7 @@ where
 
 impl<D> Dispatch<WpColorManagementSurfaceV1, SurfaceResourceData, D> for ColorManagementState
 where
-    D: Dispatch<WpColorManagementSurfaceV1, SurfaceResourceData>
-        + ColorManagementHandler
-        + 'static,
+    D: Dispatch<WpColorManagementSurfaceV1, SurfaceResourceData> + ColorManagementHandler + 'static,
 {
     fn request(
         state: &mut D,
@@ -492,9 +481,7 @@ where
                             d.detach();
                         }
                         // Spec: equivalent to unset_image_description — clear pending.
-                        let mut guard = states
-                            .cached_state
-                            .get::<ColorManagementSurfaceCachedState>();
+                        let mut guard = states.cached_state.get::<ColorManagementSurfaceCachedState>();
                         let pending = guard.pending();
                         pending.description = None;
                         pending.render_intent = wp_color_manager_v1::RenderIntent::Perceptual;
@@ -559,9 +546,7 @@ where
                 };
 
                 compositor::with_states(&surface, |states| {
-                    let mut guard = states
-                        .cached_state
-                        .get::<ColorManagementSurfaceCachedState>();
+                    let mut guard = states.cached_state.get::<ColorManagementSurfaceCachedState>();
                     let pending = guard.pending();
                     pending.description = Some(arc);
                     pending.render_intent = render_intent;
@@ -574,9 +559,7 @@ where
                     Err(_) => return,
                 };
                 compositor::with_states(&surface, |states| {
-                    let mut guard = states
-                        .cached_state
-                        .get::<ColorManagementSurfaceCachedState>();
+                    let mut guard = states.cached_state.get::<ColorManagementSurfaceCachedState>();
                     let pending = guard.pending();
                     pending.description = None;
                     pending.render_intent = wp_color_manager_v1::RenderIntent::Perceptual;
@@ -608,8 +591,7 @@ where
 // wp_color_management_surface_feedback_v1
 // ===========================================================================
 
-impl<D> Dispatch<WpColorManagementSurfaceFeedbackV1, SurfaceFeedbackResourceData, D>
-    for ColorManagementState
+impl<D> Dispatch<WpColorManagementSurfaceFeedbackV1, SurfaceFeedbackResourceData, D> for ColorManagementState
 where
     D: Dispatch<WpColorManagementSurfaceFeedbackV1, SurfaceFeedbackResourceData>
         + Dispatch<WpImageDescriptionV1, DescriptionResourceData>
@@ -652,9 +634,7 @@ fn handle_feedback_get_preferred<D>(
     parametric_only: bool,
     data_init: &mut DataInit<'_, D>,
 ) where
-    D: Dispatch<WpImageDescriptionV1, DescriptionResourceData>
-        + ColorManagementHandler
-        + 'static,
+    D: Dispatch<WpImageDescriptionV1, DescriptionResourceData> + ColorManagementHandler + 'static,
 {
     let surface = match data.surface.upgrade() {
         Ok(s) => s,
@@ -713,8 +693,7 @@ fn handle_feedback_get_preferred<D>(
 // wp_image_description_creator_params_v1
 // ===========================================================================
 
-impl<D> Dispatch<WpImageDescriptionCreatorParamsV1, ParamsCreatorBuilder, D>
-    for ColorManagementState
+impl<D> Dispatch<WpImageDescriptionCreatorParamsV1, ParamsCreatorBuilder, D> for ColorManagementState
 where
     D: Dispatch<WpImageDescriptionCreatorParamsV1, ParamsCreatorBuilder>
         + Dispatch<WpImageDescriptionV1, DescriptionResourceData>
@@ -768,10 +747,7 @@ where
                     windows_scrgb: false,
                     identity: 0,
                 };
-                let arc = state
-                    .color_management_state()
-                    .interner_mut()
-                    .intern(description);
+                let arc = state.color_management_state().interner_mut().intern(description);
                 state.new_image_description(&arc);
                 let identity = arc.identity;
                 // Per spec, params-creator descriptions do NOT allow get_information
@@ -961,9 +937,7 @@ where
                 if !state
                     .color_management_state()
                     .capabilities()
-                    .supports_feature(
-                        wp_color_manager_v1::Feature::SetMasteringDisplayPrimaries,
-                    )
+                    .supports_feature(wp_color_manager_v1::Feature::SetMasteringDisplayPrimaries)
                 {
                     resource.post_error(
                         wp_image_description_creator_params_v1::Error::UnsupportedFeature,
@@ -980,10 +954,7 @@ where
                 });
             }
 
-            wp_image_description_creator_params_v1::Request::SetMasteringLuminance {
-                min_lum,
-                max_lum,
-            } => {
+            wp_image_description_creator_params_v1::Request::SetMasteringLuminance { min_lum, max_lum } => {
                 let mut guard = data.0.lock().unwrap();
                 guard.mastering_luminance = Some(MasteringLuminance { min_lum, max_lum });
             }
@@ -1063,10 +1034,7 @@ where
                     windows_scrgb: false,
                     identity: 0,
                 };
-                let arc = state
-                    .color_management_state()
-                    .interner_mut()
-                    .intern(description);
+                let arc = state.color_management_state().interner_mut().intern(description);
                 state.new_image_description(&arc);
                 let identity = arc.identity;
                 // Per spec, ICC-creator descriptions do NOT allow get_information
@@ -1184,10 +1152,8 @@ where
                 let arc = match data.description() {
                     Some(a) => a,
                     None => {
-                        resource.post_error(
-                            wp_image_description_v1::Error::NotReady,
-                            "description not ready",
-                        );
+                        resource
+                            .post_error(wp_image_description_v1::Error::NotReady, "description not ready");
                         return;
                     }
                 };
